@@ -5,6 +5,8 @@ const DIVIDEND_YIELD_SHARES_COL = 5;               // Column E: number of shares
 const DIVIDEND_YIELD_OUTPUT_COL = 20;              // Column T: dividend yield (output)
 const DIVIDEND_YIELD_HEADER_ROWS = 1;              // Number of header rows to skip
 
+const PAYABLE_DATE_COL = 14;                       // Column N: dividend payable date (output)
+
 const SHARE_PRICE_OUTPUT_COL = 7;                  // Column G: share price (output)
 const SHARE_PRICE_TARGET_TICKERS = ["GRT-UN.TO", "REI-UN.TO"]; // Only these tickers will be updated
 // ---------------------------
@@ -21,6 +23,8 @@ function runUpdateDividendYields() {
   const sheet = helperGetConfiguredSheet(DIVIDEND_YIELD_SHEET_NAME);
   if (!sheet) return;
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const lastRow = sheet.getLastRow();
 
   for (let row = DIVIDEND_YIELD_HEADER_ROWS + 1; row <= lastRow; row++) {
@@ -39,7 +43,8 @@ function runUpdateDividendYields() {
     const ticker = helperNormalizeTicker(rawTicker);
 
     try {
-      const quote = helperFetchQuoteBySymbol(ticker, ["dividendYield"]);
+      const quote = helperFetchQuoteBySymbol(ticker, ["dividendYield", "dividendPayDate"]);
+      Logger.log(`${ticker}: ${JSON.stringify(quote)}`);
 
       if (!quote) {
         sheet.getRange(row, DIVIDEND_YIELD_OUTPUT_COL).setValue("NOT FOUND");
@@ -48,12 +53,20 @@ function runUpdateDividendYields() {
       }
 
       const yieldVal = quote.dividendYield;
-      if (yieldVal == null) {
-        sheet.getRange(row, DIVIDEND_YIELD_OUTPUT_COL).setValue(0).setNumberFormat("0.000%");
-        continue;
-      }
+      const yieldOut = yieldVal == null ? 0 : yieldVal / 100;
+      sheet.getRange(row, DIVIDEND_YIELD_OUTPUT_COL).setValue(yieldOut).setNumberFormat("0.000%");
 
-      sheet.getRange(row, DIVIDEND_YIELD_OUTPUT_COL).setValue(yieldVal / 100).setNumberFormat("0.000%");
+      const rawPayDate = quote.dividendPayDate;
+      if (!rawPayDate) {
+        Logger.log(`${ticker}: no payable date — writing 01-Dec-99`);
+        sheet.getRange(row, PAYABLE_DATE_COL).setValue(new Date(1999, 11, 1)).setNumberFormat("dd-mmm-yy");
+      } else {
+        const parts = rawPayDate.split("-");
+        const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        if (newDate > today) {
+          sheet.getRange(row, PAYABLE_DATE_COL).setValue(newDate).setNumberFormat("dd-mmm-yy");
+        }
+      }
 
     } catch (e) {
       sheet.getRange(row, DIVIDEND_YIELD_OUTPUT_COL).setValue("ERROR");
