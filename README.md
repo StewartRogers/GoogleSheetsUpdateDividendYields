@@ -104,7 +104,7 @@ Tickers should be entered as they appear on the TSX, including the `.TO` suffix.
 
 ### Share price (Column G)
 
-Only rows whose ticker appears in `SHARE_PRICE_TARGET_TICKERS` are updated. On any API failure the existing cell value is **left unchanged** — the script never overwrites a good price with an error marker. Check the Apps Script logs to see if any failures occurred.
+Only the specific rows whose ticker appears in `SHARE_PRICE_TARGET_TICKERS` are written to, using a direct cell write rather than a column-wide batch write. This means **any formulas you have in column G are preserved** — the script only touches the exact cells for target tickers when a price is successfully fetched. On any API failure the cell is left unchanged. Check the Apps Script logs to see if any failures occurred.
 
 To view logs: **View** → **Logs** in the Apps Script editor.
 
