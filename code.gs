@@ -94,8 +94,7 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
 
       if (!quote) {
         if (fetchDividends) yieldBuf[i][0] = "NOT FOUND";
-        if (needsPrice)     priceBuf[i][0] = "NOT FOUND";
-        Logger.log(`No data for ${ticker}`);
+        Logger.log(`No data for ${ticker}${needsPrice ? " — share price cell left unchanged" : ""}`);
       } else {
         if (fetchDividends) {
           const yieldVal = quote.dividendYield;
@@ -117,13 +116,16 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
         }
 
         if (needsPrice) {
-          priceBuf[i][0] = quote.price == null ? "NOT FOUND" : quote.price;
+          if (quote.price == null) {
+            Logger.log(`${ticker}: no price returned — share price cell left unchanged`);
+          } else {
+            priceBuf[i][0] = quote.price;
+          }
         }
       }
     } catch (e) {
       if (fetchDividends) yieldBuf[i][0] = "ERROR";
-      if (needsPrice)     priceBuf[i][0] = "ERROR";
-      Logger.log(`Error for ${ticker}: ${e.message}`);
+      Logger.log(`Error for ${ticker}: ${e.message}${needsPrice ? " — share price cell left unchanged" : ""}`);
     }
 
     Utilities.sleep(300);
