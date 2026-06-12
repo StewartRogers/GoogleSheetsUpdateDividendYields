@@ -36,5 +36,6 @@ All code lives in `code.gs`. The structure is:
 - The TMX API returns `dividendYield` as a percentage integer (e.g. `5.2` means 5.2%), so the script divides by 100 before writing.
 - Payable dates are only updated if the new date is in the future — past dates are left unchanged. If the API returns no date, the sentinel value `NO_PAY_DATE` (1 Dec 1999) is written.
 - `targetTickerSet` is built by uppercasing and normalizing `SHARE_PRICE_TARGET_TICKERS` so that case variations in the config array don't cause silent mismatches.
+- Share price cells are never overwritten on API failure (not found, null price, or exception) — `priceBuf` retains its pre-read value so the last good price is preserved. Dividend yield cells still write `NOT FOUND` / `ERROR` on failure.
 - `dividendPayDate` from the API is a `YYYY-MM-DD` string; the script parses it and only overwrites the cell if the resulting date is in the future. Unexpected formats are logged and the cell is left unchanged.
 - Only TSX-listed tickers work — the TMX API does not cover US or other exchanges.
