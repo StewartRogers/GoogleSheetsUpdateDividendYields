@@ -45,7 +45,7 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const targetTickerSet = new Set(SHARE_PRICE_TARGET_TICKERS.map(helperNormalizeTicker));
+  const targetTickerSet = new Set(SHARE_PRICE_TARGET_TICKERS.map(t => helperNormalizeTicker(t.toUpperCase())));
 
   // ── Batch reads ──────────────────────────────────────────────────────────
   // Read columns D–N in one call: ticker (D=4), shares (E=5), ..., payable date (N=14)
@@ -143,8 +143,9 @@ function helperGetConfiguredSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
-    SpreadsheetApp.getUi().alert(`Sheet "${sheetName}" not found. Please check the SHEET_NAME setting.`);
-    return null;
+    const msg = `Sheet "${sheetName}" not found. Please check the SHEET_NAME setting.`;
+    Logger.log(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch (_) {}
   }
   return sheet;
 }

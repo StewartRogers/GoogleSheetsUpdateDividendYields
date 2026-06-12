@@ -1,6 +1,6 @@
 # GoogleSheetsUpdateDividendYields
 
-A Google Apps Script that fetches current dividend yields, dividend payable dates, and share prices for TSX-listed stocks from the TMX API and writes them into your Google Sheet.
+A Google Apps Script that fetches current **dividend yields**, **dividend payable dates**, and **share prices** for TSX-listed stocks from the TMX API and writes them into your Google Sheet.
 
 ---
 
@@ -38,38 +38,33 @@ The script expects your data to start on **row 2** (row 1 is the header). The re
 At the top of the script, update the configuration constants to match your spreadsheet:
 
 ```js
-const DIVIDEND_YIELD_SHEET_NAME   = "Portfolio"; // Name of your sheet tab
-const DIVIDEND_YIELD_TICKER_COL   = 4;           // Column containing ticker symbols (D = 4)
-const DIVIDEND_YIELD_SHARES_COL   = 5;           // Column containing share counts (E = 5)
-const DIVIDEND_YIELD_OUTPUT_COL   = 20;          // Column to write dividend yields (T = 20)
-const DIVIDEND_YIELD_HEADER_ROWS  = 1;           // Number of header rows to skip
+const DIVIDEND_YIELD_SHEET_NAME  = "Portfolio"; // Name of your sheet tab
+const DIVIDEND_YIELD_TICKER_COL  = 4;           // Column containing ticker symbols (D = 4)
+const DIVIDEND_YIELD_SHARES_COL  = 5;           // Column containing share counts (E = 5)
+const DIVIDEND_YIELD_OUTPUT_COL  = 20;          // Column to write dividend yields (T = 20)
+const DIVIDEND_YIELD_HEADER_ROWS = 1;           // Number of header rows to skip
 
-const PAYABLE_DATE_COL            = 14;          // Column to write dividend payable dates (N = 14)
-const SHARE_PRICE_OUTPUT_COL      = 7;           // Column to write share prices (G = 7)
-const SHARE_PRICE_TARGET_TICKERS  = ["GRT-UN.TO", "REI-UN.TO"]; // Tickers to update share price for
+const PAYABLE_DATE_COL           = 14;                           // Column to write dividend payable dates (N = 14)
+const SHARE_PRICE_OUTPUT_COL     = 7;                            // Column to write share prices (G = 7)
+const SHARE_PRICE_TARGET_TICKERS = ["GRT-UN.TO", "REI-UN.TO"];  // Only these tickers get a share price update
 ```
 
-Set `DIVIDEND_YIELD_SHEET_NAME` to exactly match the tab name at the bottom of your spreadsheet.
-
-Only tickers listed in `SHARE_PRICE_TARGET_TICKERS` will have their share price updated. Add or remove tickers from that array as needed.
+Set `DIVIDEND_YIELD_SHEET_NAME` to exactly match the tab name at the bottom of your spreadsheet. Add or remove entries from `SHARE_PRICE_TARGET_TICKERS` to control which stocks have their share price updated.
 
 ---
 
 ## Running the Script
 
-The script provides three entry-point functions:
+Three functions are available in the Apps Script editor's function dropdown:
 
 | Function | What it does |
 |----------|-------------|
-| `runUpdatePortfolioData` | Runs both updates below in a single pass |
+| `runUpdatePortfolioData` | Runs both updates in a single pass (recommended) |
 | `runUpdateDividendYields` | Updates dividend yield and payable date columns only |
-| `runUpdateSelectedSharePrices` | Updates share price column only (target tickers only) |
+| `runUpdateSelectedSharePrices` | Updates share price column only |
 
-To run manually:
-
-1. In the Apps Script editor, select the function you want from the function dropdown.
-2. Click the **Run** button (▶).
-3. The first time you run it, Google will ask you to grant permissions:
+1. Select the desired function from the dropdown and click the **Run** button (▶).
+2. The first time you run it, Google will ask you to grant permissions:
    - **View and manage your spreadsheets** — to read tickers and write output values.
    - **Connect to an external service** — to fetch data from the TMX API.
    - Click **Review permissions** → choose your Google account → **Allow**.
@@ -94,7 +89,7 @@ Tickers should be entered as they appear on the TSX, including the `.TO` suffix.
 
 | Value | Meaning |
 |-------|---------|
-| `0.000%` formatted value | Dividend yield fetched successfully |
+| `0.000%` formatted value | Yield fetched successfully |
 | `0.000%` (zero) | Stock pays no dividend, or ticker is `CASH` |
 | `NOT FOUND` | Ticker not recognised by TMX |
 | `ERROR` | Network or parsing error — check the Apps Script logs |
@@ -124,6 +119,6 @@ To view logs: **View** → **Logs** in the Apps Script editor.
 ## Notes
 
 - This script targets **TSX-listed stocks** via the unofficial TMX GraphQL API (`app-money.tmx.com`). It will not work for US or other non-TSX tickers.
-- Rows where **shares = 0 or blank** are skipped entirely for both yield and price updates.
-- A 300 ms delay between rows is included to avoid rate-limiting.
-- The script runs manually. To schedule it, go to **Triggers** (clock icon in the Apps Script editor) and add a time-driven trigger for `runUpdatePortfolioData`.
+- Rows where **shares = 0 or blank** are skipped entirely.
+- A 300 ms delay is applied after each API call to avoid rate-limiting.
+- To schedule the script, go to **Triggers** (clock icon in the Apps Script editor) and add a time-driven trigger for `runUpdatePortfolioData`.
