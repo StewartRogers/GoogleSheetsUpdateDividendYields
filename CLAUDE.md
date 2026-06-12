@@ -23,10 +23,11 @@ All code lives in `code.gs`. The structure is:
   - `runUpdatePortfolioData()` — calls `helperProcessRows` with both flags true (single pass)
   - `runUpdateDividendYields()` — calls `helperProcessRows(sheet, true, false)`
   - `runUpdateSelectedSharePrices()` — calls `helperProcessRows(sheet, false, true)`
-- **`helperProcessRows(sheet, fetchDividends, fetchPrices)`** — the core loop. Batch-reads all input columns in one `getValues()` call, processes each row, accumulates output into buffers, then batch-writes with `setValues()`. When `fetchDividends` and `fetchPrices` are both true it combines both into a single TMX API call per row.
-- **Two shared helpers**:
+- **`helperProcessRows(sheet, fetchDividends, fetchPrices)`** — the core loop. Reads input columns D–N in one `getValues()` call, reads the existing output buffers (yield column and/or price column) in up to two further reads, processes each row, accumulates results, then batch-writes all output columns with `setValues()`. When both flags are true, dividend and price fields are combined into a single TMX API call per row.
+- **Three shared helpers**:
+  - `helperGetConfiguredSheet(sheetName)` — looks up the sheet by name; logs and attempts a UI alert on failure (the alert is silently skipped when running from a trigger with no browser context)
   - `helperNormalizeTicker(rawTicker)` — strips `.TO` suffix and converts `-` to `.` (e.g. `GRT-UN.TO` → `GRT.UN`) to match the TMX symbol format
-  - `helperFetchQuoteBySymbol(ticker, fields)` — POSTs a GraphQL query to `https://app-money.tmx.com/graphql`, checks the HTTP status code, logs GraphQL errors, and returns the `getQuoteBySymbol` result or `null`
+  - `helperFetchQuoteBySymbol(ticker, fields)` — POSTs a GraphQL query to `https://app-money.tmx.com/graphql`, returns `null` on non-200 HTTP responses or GraphQL errors (both are logged), otherwise returns the `getQuoteBySymbol` object
 
 ## Key behaviours
 
@@ -35,5 +36,5 @@ All code lives in `code.gs`. The structure is:
 - The TMX API returns `dividendYield` as a percentage integer (e.g. `5.2` means 5.2%), so the script divides by 100 before writing.
 - Payable dates are only updated if the new date is in the future — past dates are left unchanged. If the API returns no date, the sentinel value `NO_PAY_DATE` (1 Dec 1999) is written.
 - `targetTickerSet` is built by uppercasing and normalizing `SHARE_PRICE_TARGET_TICKERS` so that case variations in the config array don't cause silent mismatches.
-- `helperGetConfiguredSheet` logs a "not found" message and attempts a UI alert (silently skipped when running from a trigger with no browser context).
+- `dividendPayDate` from the API is a `YYYY-MM-DD` string; the script parses it and only overwrites the cell if the resulting date is in the future. Unexpected formats are logged and the cell is left unchanged.
 - Only TSX-listed tickers work — the TMX API does not cover US or other exchanges.
