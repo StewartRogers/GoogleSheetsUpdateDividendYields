@@ -9,6 +9,9 @@ const PAYABLE_DATE_COL = 14;                       // Column N: dividend payable
 const SHARE_PRICE_OUTPUT_COL = 7;                  // Column G: share price (output)
 const SHARE_PRICE_TARGET_TICKERS = ["GRT-UN.TO", "REI-UN.TO"];
 
+// Tickers treated as non-equity placeholders: written as 0% yield, no API call made
+const NON_EQUITY_TICKERS = new Set(["CASH"]);
+
 // Written to payable date column when the API returns no date for a ticker
 const NO_PAY_DATE = new Date(1999, 11, 1);
 // ---------------------------
@@ -70,11 +73,15 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
     const rawTicker = (inputData[i][tickerIdx] ?? "").toString().trim().toUpperCase();
     if (!rawTicker) continue;
 
-    // Rows with no current position are skipped intentionally for both yield and price
-    const shares = parseFloat(inputData[i][sharesIdx]) || 0;
-    if (shares <= 0) continue;
+    const rawShares = inputData[i][sharesIdx];
+    const shares = parseFloat(rawShares) || 0;
+    if (shares <= 0) {
+      if (rawShares !== "" && rawShares != null && isNaN(Number(rawShares)))
+        Logger.log(`Row ${i + firstDataRow}: non-numeric shares value "${rawShares}" — row skipped`);
+      continue;
+    }
 
-    if (rawTicker === "CASH") {
+    if (NON_EQUITY_TICKERS.has(rawTicker)) {
       if (fetchDividends) yieldBuf[i][0] = 0;
       continue;
     }
@@ -107,8 +114,15 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
           } else {
             const parts = rawPayDate.split("-");
             if (parts.length === 3) {
-              const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-              if (newDate > today) payDateBuf[i][0] = newDate;
+              const year  = parseInt(parts[0], 10);
+              const month = parseInt(parts[1], 10) - 1;
+              const day   = parseInt(parts[2], 10);
+              if (isNaN(year) || month < 0 || month > 11 || isNaN(day)) {
+                Logger.log(`${ticker}: invalid date values in "${rawPayDate}" — payable date unchanged`);
+              } else {
+                const newDate = new Date(year, month, day);
+                if (newDate > today) payDateBuf[i][0] = newDate;
+              }
             } else {
               Logger.log(`${ticker}: unexpected date format "${rawPayDate}" — payable date unchanged`);
             }
@@ -133,8 +147,13 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
 
   // ── Batch writes ─────────────────────────────────────────────────────────
   if (fetchDividends) {
-    sheet.getRange(firstDataRow, DIVIDEND_YIELD_OUTPUT_COL, numRows, 1).setValues(yieldBuf).setNumberFormat("0.000%");
-    sheet.getRange(firstDataRow, PAYABLE_DATE_COL,          numRows, 1).setValues(payDateBuf).setNumberFormat("dd-mmm-yy");
+    const yieldRange = sheet.getRange(firstDataRow, DIVIDEND_YIELD_OUTPUT_COL, numRows, 1);
+    yieldRange.setValues(yieldBuf);
+    // Apply percent format only to numeric cells; set error cells to plain text
+    // so formulas referencing this column receive a number, not a string.
+    const yieldFormats = yieldBuf.map(r => [typeof r[0] === "number" ? "0.000%" : "@"]);
+    yieldRange.setNumberFormats(yieldFormats);
+    sheet.getRange(firstDataRow, PAYABLE_DATE_COL, numRows, 1).setValues(payDateBuf).setNumberFormat("dd-mmm-yy");
   }
   if (fetchPrices) {
     sheet.getRange(firstDataRow, SHARE_PRICE_OUTPUT_COL, numRows, 1).setValues(priceBuf);
