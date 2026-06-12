@@ -104,13 +104,7 @@ Tickers should be entered as they appear on the TSX, including the `.TO` suffix.
 
 ### Share price (Column G)
 
-Only rows whose ticker appears in `SHARE_PRICE_TARGET_TICKERS` are updated.
-
-| Value | Meaning |
-|-------|---------|
-| Numeric value | Current share price fetched successfully |
-| `NOT FOUND` | Ticker not recognised by TMX |
-| `ERROR` | Network or parsing error — check the Apps Script logs |
+Only rows whose ticker appears in `SHARE_PRICE_TARGET_TICKERS` are updated. On any API failure the existing cell value is **left unchanged** — the script never overwrites a good price with an error marker. Check the Apps Script logs to see if any failures occurred.
 
 To view logs: **View** → **Logs** in the Apps Script editor.
 
