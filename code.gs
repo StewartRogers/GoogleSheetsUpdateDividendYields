@@ -58,13 +58,12 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
   const sharesIdx  = DIVIDEND_YIELD_SHARES_COL - DIVIDEND_YIELD_TICKER_COL;
   const payDateIdx = PAYABLE_DATE_COL          - DIVIDEND_YIELD_TICKER_COL;
 
-  // Read existing output columns so unchanged rows are preserved in the batch write
+  // Read existing yield output so unchanged rows are preserved in the batch write
   const yieldBuf = fetchDividends
     ? sheet.getRange(firstDataRow, DIVIDEND_YIELD_OUTPUT_COL, numRows, 1).getValues()
     : null;
-  const priceBuf = fetchPrices
-    ? sheet.getRange(firstDataRow, SHARE_PRICE_OUTPUT_COL, numRows, 1).getValues()
-    : null;
+  // Note: share prices are written per-cell (not batched) to avoid overwriting
+  // formulas in column G for rows that are not target tickers.
   // payDateBuf defaults to existing payable dates (already in inputData)
   const payDateBuf = inputData.map(r => [r[payDateIdx]]);
 
@@ -133,7 +132,7 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
           if (quote.price == null) {
             Logger.log(`${ticker}: no price returned — share price cell left unchanged`);
           } else {
-            priceBuf[i][0] = quote.price;
+            sheet.getRange(firstDataRow + i, SHARE_PRICE_OUTPUT_COL).setValue(quote.price);
           }
         }
       }
@@ -154,9 +153,6 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
     const yieldFormats = yieldBuf.map(r => [typeof r[0] === "number" ? "0.000%" : "@"]);
     yieldRange.setNumberFormats(yieldFormats);
     sheet.getRange(firstDataRow, PAYABLE_DATE_COL, numRows, 1).setValues(payDateBuf).setNumberFormat("dd-mmm-yy");
-  }
-  if (fetchPrices) {
-    sheet.getRange(firstDataRow, SHARE_PRICE_OUTPUT_COL, numRows, 1).setValues(priceBuf);
   }
 }
 
