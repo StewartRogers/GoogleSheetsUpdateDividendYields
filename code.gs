@@ -174,6 +174,27 @@ function helperNormalizeTicker(rawTicker) {
   return rawTicker.replace(/\.TO$/i, "").replace(/-/g, ".");
 }
 
+function helperGetYahooSession() {
+  // Step 1: obtain a session cookie from Yahoo
+  const cookieResp = UrlFetchApp.fetch("https://fc.yahoo.com", {
+    muteHttpExceptions: true,
+    followRedirects: false
+  });
+  const rawCookie = cookieResp.getAllHeaders()["Set-Cookie"];
+  const cookie = Array.isArray(rawCookie) ? rawCookie.join("; ") : (rawCookie || "");
+
+  // Step 2: exchange the cookie for a crumb
+  const crumbResp = UrlFetchApp.fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+    muteHttpExceptions: true,
+    headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
+  });
+  if (crumbResp.getResponseCode() !== 200) {
+    Logger.log(`Yahoo crumb fetch failed (HTTP ${crumbResp.getResponseCode()})`);
+    return null;
+  }
+  return { cookie, crumb: crumbResp.getContentText().trim() };
+}
+
 function helperFetchYahooQuote(ticker, fields) {
   const needsDividends = fields.includes("dividendYield") || fields.includes("dividendPayDate");
   const needsPrice     = fields.includes("price");
@@ -181,8 +202,14 @@ function helperFetchYahooQuote(ticker, fields) {
   if (needsDividends) modules.push("summaryDetail", "calendarEvents");
   if (needsPrice)     modules.push("price");
 
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules.join(",")}`;
-  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  const session = helperGetYahooSession();
+  if (!session) return null;
+
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules.join(",")}&crumb=${encodeURIComponent(session.crumb)}`;
+  const response = UrlFetchApp.fetch(url, {
+    muteHttpExceptions: true,
+    headers: { "Cookie": session.cookie, "User-Agent": "Mozilla/5.0" }
+  });
 
   if (response.getResponseCode() !== 200) {
     Logger.log(`Yahoo HTTP ${response.getResponseCode()} for ${ticker}: ${response.getContentText()}`);
