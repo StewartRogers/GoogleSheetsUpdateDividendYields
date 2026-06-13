@@ -12,6 +12,9 @@ const SHARE_PRICE_TARGET_TICKERS = ["GRT-UN.TO", "REI-UN.TO"];
 // Tickers treated as non-equity placeholders: written as 0% yield, no API call made
 const NON_EQUITY_TICKERS = new Set(["CASH"]);
 
+// US-listed tickers (Nasdaq/NYSE) fetched from Yahoo Finance instead of TMX
+const US_TICKERS = new Set(["SPCX"]);
+
 // Written to payable date column when the API returns no date for a ticker
 const NO_PAY_DATE = new Date(1999, 11, 1);
 // ---------------------------
@@ -85,31 +88,32 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
       continue;
     }
 
-    const ticker = helperNormalizeTicker(rawTicker);
+    const isUS = US_TICKERS.has(rawTicker);
+    const ticker = isUS ? rawTicker : helperNormalizeTicker(rawTicker);
     const needsPrice = fetchPrices && targetTickerSet.has(ticker);
     if (!fetchDividends && !needsPrice) continue;
 
-    // Combine all needed fields into one TMX call to minimise API requests
     const fields = [];
     if (fetchDividends) fields.push("dividendYield", "dividendPayDate");
     if (needsPrice)     fields.push("price");
 
     try {
-      const quote = helperFetchQuoteBySymbol(ticker, fields);
+      const quote = isUS
+        ? helperFetchYahooQuote(ticker, fields)
+        : helperFetchQuoteBySymbol(ticker, fields);
       Logger.log(`${ticker}: ${JSON.stringify(quote)}`);
 
       if (!quote) {
-        if (fetchDividends) yieldBuf[i][0] = "NOT FOUND";
-        Logger.log(`No data for ${ticker}${needsPrice ? " — share price cell left unchanged" : ""}`);
+        Logger.log(`No data for ${ticker} — yield and pay date left unchanged${needsPrice ? ", share price cell left unchanged" : ""}`);
       } else {
         if (fetchDividends) {
           const yieldVal = quote.dividendYield;
-          yieldBuf[i][0] = yieldVal == null ? 0 : yieldVal / 100;
+          if (yieldVal != null) yieldBuf[i][0] = yieldVal / 100;
+          else Logger.log(`${ticker}: no yield returned — yield left unchanged`);
 
           const rawPayDate = quote.dividendPayDate;
           if (!rawPayDate) {
-            Logger.log(`${ticker}: no payable date — writing sentinel`);
-            payDateBuf[i][0] = NO_PAY_DATE;
+            Logger.log(`${ticker}: no payable date — pay date left unchanged`);
           } else {
             const parts = rawPayDate.split("-");
             if (parts.length === 3) {
@@ -137,8 +141,7 @@ function helperProcessRows(sheet, fetchDividends, fetchPrices) {
         }
       }
     } catch (e) {
-      if (fetchDividends) yieldBuf[i][0] = "ERROR";
-      Logger.log(`Error for ${ticker}: ${e.message}${needsPrice ? " — share price cell left unchanged" : ""}`);
+      Logger.log(`Error for ${ticker}: ${e.message}${needsPrice ? " — share price cell left unchanged" : ""} — yield left unchanged`);
     }
 
     Utilities.sleep(300);
@@ -169,6 +172,46 @@ function helperGetConfiguredSheet(sheetName) {
 
 function helperNormalizeTicker(rawTicker) {
   return rawTicker.replace(/\.TO$/i, "").replace(/-/g, ".");
+}
+
+function helperFetchYahooQuote(ticker, fields) {
+  const needsDividends = fields.includes("dividendYield") || fields.includes("dividendPayDate");
+  const needsPrice     = fields.includes("price");
+  const modules = [];
+  if (needsDividends) modules.push("summaryDetail", "calendarEvents");
+  if (needsPrice)     modules.push("price");
+
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules.join(",")}`;
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+
+  if (response.getResponseCode() !== 200) {
+    Logger.log(`Yahoo HTTP ${response.getResponseCode()} for ${ticker}: ${response.getContentText()}`);
+    return null;
+  }
+
+  const parsed = JSON.parse(response.getContentText());
+  const result = parsed?.quoteSummary?.result?.[0];
+  if (!result) {
+    Logger.log(`Yahoo: no result for ${ticker}`);
+    return null;
+  }
+
+  const out = {};
+  if (needsDividends) {
+    // Yahoo returns yield as a decimal (0.05 = 5%); multiply by 100 to match TMX format
+    const raw = result.summaryDetail?.dividendYield?.raw;
+    out.dividendYield = raw != null ? raw * 100 : null;
+
+    const ts = result.calendarEvents?.dividendDate?.raw;
+    if (ts) {
+      const d = new Date(ts * 1000);
+      out.dividendPayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+  }
+  if (needsPrice) {
+    out.price = result.price?.regularMarketPrice?.raw ?? null;
+  }
+  return out;
 }
 
 function helperFetchQuoteBySymbol(ticker, fields) {
