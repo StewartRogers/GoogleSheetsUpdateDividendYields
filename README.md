@@ -1,6 +1,6 @@
 # GoogleSheetsUpdateDividendYields
 
-A Google Apps Script that fetches current **dividend yields**, **dividend payable dates**, and **share prices** for TSX-listed stocks from the TMX API and writes them into your Google Sheet.
+A Google Apps Script that fetches current **dividend yields**, **dividend payable dates**, and **share prices** for TSX-listed stocks from the TMX API — and for a configurable set of US-listed tickers from Yahoo Finance — and writes them into your Google Sheet.
 
 ---
 
@@ -47,9 +47,11 @@ const DIVIDEND_YIELD_HEADER_ROWS = 1;           // Number of header rows to skip
 const PAYABLE_DATE_COL           = 14;                           // Column to write dividend payable dates (N = 14)
 const SHARE_PRICE_OUTPUT_COL     = 7;                            // Column to write share prices (G = 7)
 const SHARE_PRICE_TARGET_TICKERS = ["GRT-UN.TO", "REI-UN.TO"];  // Only these tickers get a share price update
+
+const US_TICKERS = new Set(["SPCX"]);  // US-listed tickers fetched from Yahoo Finance instead of TMX
 ```
 
-Set `DIVIDEND_YIELD_SHEET_NAME` to exactly match the tab name at the bottom of your spreadsheet. Add or remove entries from `SHARE_PRICE_TARGET_TICKERS` to control which stocks have their share price updated.
+Set `DIVIDEND_YIELD_SHEET_NAME` to exactly match the tab name at the bottom of your spreadsheet. Add or remove entries from `SHARE_PRICE_TARGET_TICKERS` to control which stocks have their share price updated. Add tickers to `US_TICKERS` to have them queried against Yahoo Finance instead of TMX.
 
 ---
 
@@ -81,6 +83,8 @@ Tickers should be entered as they appear on the TSX, including the `.TO` suffix.
 | `GRT-UN.TO` | `GRT.UN` |
 | `CASH` | written as `0%`, skipped |
 
+Tickers listed in `US_TICKERS` (e.g. `SPCX`) are queried against Yahoo Finance as-is, without TSX normalisation.
+
 ---
 
 ## Output
@@ -91,16 +95,14 @@ Tickers should be entered as they appear on the TSX, including the `.TO` suffix.
 |-------|---------|
 | `0.000%` formatted value | Yield fetched successfully |
 | `0.000%` (zero) | Stock pays no dividend, or ticker is `CASH` |
-| `NOT FOUND` | Ticker not recognised by TMX |
-| `ERROR` | Network or parsing error — check the Apps Script logs |
+| *(unchanged)* | Ticker not found, no yield returned, or a network/parsing error occurred — check the Apps Script logs |
 
 ### Dividend payable date (Column N)
 
 | Value | Meaning |
 |-------|---------|
 | Date formatted `dd-mmm-yy` | Next upcoming payable date |
-| `01-Dec-99` | TMX returned no payable date for this ticker |
-| *(unchanged)* | Payable date is in the past — existing cell value preserved |
+| *(unchanged)* | No payable date returned, or the returned date is in the past — existing cell value preserved |
 
 ### Share price (Column G)
 
@@ -112,7 +114,7 @@ To view logs: **View** → **Logs** in the Apps Script editor.
 
 ## Notes
 
-- This script targets **TSX-listed stocks** via the unofficial TMX GraphQL API (`app-money.tmx.com`). It will not work for US or other non-TSX tickers.
+- This script targets **TSX-listed stocks** via the unofficial TMX GraphQL API (`app-money.tmx.com`). Tickers listed in `US_TICKERS` are instead fetched from Yahoo Finance (`query1.finance.yahoo.com`), which requires an unauthenticated session cookie and crumb obtained at the start of each run and reused for the rest of that run. Tickers not in `US_TICKERS` and not on the TSX will not work.
 - Rows where **shares = 0 or blank** are skipped entirely.
 - A 300 ms delay is applied after each API call to avoid rate-limiting.
 - To schedule the script, go to **Triggers** (clock icon in the Apps Script editor) and add a time-driven trigger for `runUpdatePortfolioData`.

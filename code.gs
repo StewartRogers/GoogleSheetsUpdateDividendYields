@@ -15,8 +15,6 @@ const NON_EQUITY_TICKERS = new Set(["CASH"]);
 // US-listed tickers (Nasdaq/NYSE) fetched from Yahoo Finance instead of TMX
 const US_TICKERS = new Set(["SPCX"]);
 
-// Written to payable date column when the API returns no date for a ticker
-const NO_PAY_DATE = new Date(1999, 11, 1);
 // ---------------------------
 
 function runUpdatePortfolioData() {
@@ -174,7 +172,13 @@ function helperNormalizeTicker(rawTicker) {
   return rawTicker.replace(/\.TO$/i, "").replace(/-/g, ".");
 }
 
+// Cached for the duration of a single script execution so repeated Yahoo
+// lookups in the same run don't each pay for a fresh cookie + crumb fetch.
+let _yahooSessionCache = null;
+
 function helperGetYahooSession() {
+  if (_yahooSessionCache) return _yahooSessionCache;
+
   // Step 1: obtain a session cookie from Yahoo
   const cookieResp = UrlFetchApp.fetch("https://fc.yahoo.com", {
     muteHttpExceptions: true,
@@ -192,7 +196,8 @@ function helperGetYahooSession() {
     Logger.log(`Yahoo crumb fetch failed (HTTP ${crumbResp.getResponseCode()})`);
     return null;
   }
-  return { cookie, crumb: crumbResp.getContentText().trim() };
+  _yahooSessionCache = { cookie, crumb: crumbResp.getContentText().trim() };
+  return _yahooSessionCache;
 }
 
 function helperFetchYahooQuote(ticker, fields) {
