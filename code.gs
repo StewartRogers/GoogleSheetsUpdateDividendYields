@@ -210,7 +210,7 @@ function helperFetchYahooQuote(ticker, fields) {
   const session = helperGetYahooSession();
   if (!session) return null;
 
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=${modules.join(",")}&crumb=${encodeURIComponent(session.crumb)}`;
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules.join(",")}&crumb=${encodeURIComponent(session.crumb)}`;
   const response = UrlFetchApp.fetch(url, {
     muteHttpExceptions: true,
     headers: { "Cookie": session.cookie, "User-Agent": "Mozilla/5.0" }
